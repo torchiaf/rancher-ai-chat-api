@@ -50,41 +50,45 @@ async def list_sessions():
     conn = get_conn()
     try:
         with conn.cursor() as cur:
+            # Fetch sessions that have at least one user message
             cur.execute(
-                "SELECT id, session_id, user_id, active, created_at "
-                "FROM sessions "
-                "WHERE user_id=%s "
-                "ORDER BY created_at DESC",
+                "SELECT s.id, s.session_id, s.user_id, s.active, s.name, s.created_at "
+                "FROM sessions s "
+                "WHERE s.user_id=%s "
+                "AND EXISTS ( "
+                " SELECT 1 FROM messages m WHERE m.session_id = s.session_id AND m.role = 'user' "
+                ") "
+                "ORDER BY s.created_at DESC",
                 (user_id,),
             )
             rows = cur.fetchall()
         return jsonify(rows)
     finally:
         conn.close()
-        
+
 @app.route("/sessions", methods=["POST"])
 async def create_session():
     user_id = await get_user_id(request)
         
     data = request.get_json(force=True, silent=True)
 
-    if not data or not data["chat_name"] or not user_id:
-        abort(400, "user_id and chat_name are required")
+    if not data or not data["name"] or not user_id:
+        abort(400, "user_id and session name are required")
 
     conn = get_conn()
     try:
         with conn.cursor() as cur:
             cur.execute(
                 "INSERT INTO sessions "
-                "(session_id, user_id, active, created_at) "
-                "VALUES (%s, %s, %s, %s)",
-                (str(uuid.uuid4()), user_id, True, int(time.time())),
+                "(session_id, user_id, active, name, created_at) "
+                "VALUES (%s, %s, %s, %s, %s)",
+                (str(uuid.uuid4()), user_id, True, data["name"], int(time.time())),
             )
             conn.commit()
 
             new_id = cur.lastrowid
             cur.execute(
-                "SELECT id, session_id, user_id, active, created_at "
+                "SELECT id, session_id, user_id, active, name, created_at "
                 "FROM sessions "
                 "WHERE id=%s",
                 new_id
@@ -95,14 +99,14 @@ async def create_session():
     finally:
         conn.close()
         
-@app.route("/sessions/<int:session_id>", methods=["DELETE"])
+@app.route("/sessions/<session_id>", methods=["DELETE"])
 async def delete_session(session_id):
     user_id = await get_user_id(request)
 
     conn = get_conn()
     try:
         with conn.cursor() as cur:
-            cur.execute("SELECT user_id FROM sessions WHERE id=%s", (session_id,))
+            cur.execute("SELECT user_id FROM sessions WHERE session_id=%s", (session_id,))
             row = cur.fetchone()
             
             if not row or row[0] != user_id:
@@ -110,32 +114,48 @@ async def delete_session(session_id):
             
             cur.execute(
                 "DELETE FROM sessions "
-                "WHERE id=%s ",
+                "WHERE session_id=%s ",
                 (session_id,)
             )
-            conn.commit()
+            
             if cur.rowcount == 0:
                 abort(404)
+
+            # Delete associated messages
+            cur.execute(
+                "DELETE FROM messages "
+                "WHERE session_id=%s ",
+                (session_id,)
+            )
+
+            conn.commit()
         return "", 204
     finally:
         conn.close()
 
-@app.route("/messages")
-async def list_messages():
-    user_id = await get_user_id(request)
+@app.route("/messages/<session_id>", methods=["GET"])
+async def list_messages(session_id):
+    if not session_id:
+        abort(400, "session_id is required")
 
+    res = []
     conn = get_conn()
-    with conn.cursor() as cur:
-        cur.execute(
-            "SELECT session_id, request_id, role, message, created_at "
-            "FROM messages "
-            "WHERE user_id=%s "
-            "ORDER BY created_at DESC",
-            (user_id,),
-        )
-        rows = cur.fetchall()
-    conn.close()
-    return jsonify(rows)
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT session_id, request_id, role, message, created_at "
+                "FROM messages "
+                "WHERE session_id=%s "
+                "ORDER BY created_at DESC",
+                (session_id,),
+            )
+            rows = cur.fetchall()
+            
+            res = jsonify(rows)
+    finally:
+        conn.close()
+
+    return res
 
 @app.route("/health")
 def health():
