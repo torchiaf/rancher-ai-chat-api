@@ -43,20 +43,20 @@ async def get_user_id(request) -> str:
 
     return None
 
-@app.route("/sessions", methods=["GET"])
-async def list_sessions():
+@app.route("/chats", methods=["GET"])
+async def list_chats():
     user_id = await get_user_id(request)
 
     conn = get_conn()
     try:
         with conn.cursor() as cur:
-            # Fetch sessions that have at least one user message
+            # Fetch chats that have at least one user message
             cur.execute(
-                "SELECT s.id, s.session_id, s.user_id, s.active, s.name, s.created_at "
-                "FROM sessions s "
+                "SELECT s.id, s.chat_id, s.user_id, s.active, s.name, s.created_at "
+                "FROM chats s "
                 "WHERE s.user_id=%s "
                 "AND EXISTS ( "
-                " SELECT 1 FROM messages m WHERE m.session_id = s.session_id AND m.role = 'user' "
+                " SELECT 1 FROM messages m WHERE m.chat_id = s.chat_id AND m.role = 'user' "
                 ") "
                 "ORDER BY s.created_at DESC",
                 (user_id,),
@@ -66,21 +66,21 @@ async def list_sessions():
     finally:
         conn.close()
 
-@app.route("/sessions", methods=["POST"])
-async def create_session():
+@app.route("/chats", methods=["POST"])
+async def create_chat():
     user_id = await get_user_id(request)
         
     data = request.get_json(force=True, silent=True)
 
     if not data or not data["name"] or not user_id:
-        abort(400, "user_id and session name are required")
+        abort(400, "user_id and chat name are required")
 
     conn = get_conn()
     try:
         with conn.cursor() as cur:
             cur.execute(
-                "INSERT INTO sessions "
-                "(session_id, user_id, active, name, created_at) "
+                "INSERT INTO chats "
+                "(chat_id, user_id, active, name, created_at) "
                 "VALUES (%s, %s, %s, %s, %s)",
                 (str(uuid.uuid4()), user_id, True, data["name"], int(time.time())),
             )
@@ -88,8 +88,8 @@ async def create_session():
 
             new_id = cur.lastrowid
             cur.execute(
-                "SELECT id, session_id, user_id, active, name, created_at "
-                "FROM sessions "
+                "SELECT id, chat_id, user_id, active, name, created_at "
+                "FROM chats "
                 "WHERE id=%s",
                 new_id
             )
@@ -98,24 +98,24 @@ async def create_session():
         return jsonify(row), 201
     finally:
         conn.close()
-        
-@app.route("/sessions/<session_id>", methods=["DELETE"])
-async def delete_session(session_id):
+
+@app.route("/chats/<chat_id>", methods=["DELETE"])
+async def delete_chat(chat_id):
     user_id = await get_user_id(request)
 
     conn = get_conn()
     try:
         with conn.cursor() as cur:
-            cur.execute("SELECT user_id FROM sessions WHERE session_id=%s", (session_id,))
+            cur.execute("SELECT user_id FROM chats WHERE chat_id=%s", (chat_id,))
             row = cur.fetchone()
             
             if not row or row[0] != user_id:
                 abort(404)
             
             cur.execute(
-                "DELETE FROM sessions "
-                "WHERE session_id=%s ",
-                (session_id,)
+                "DELETE FROM chats "
+                "WHERE chat_id=%s ",
+                (chat_id,)
             )
             
             if cur.rowcount == 0:
@@ -124,8 +124,8 @@ async def delete_session(session_id):
             # Delete associated messages
             cur.execute(
                 "DELETE FROM messages "
-                "WHERE session_id=%s ",
-                (session_id,)
+                "WHERE chat_id=%s ",
+                (chat_id,)
             )
 
             conn.commit()
@@ -133,21 +133,21 @@ async def delete_session(session_id):
     finally:
         conn.close()
 
-@app.route("/messages/<session_id>", methods=["GET"])
-async def list_messages(session_id):
-    if not session_id:
-        abort(400, "session_id is required")
+@app.route("/messages/<chat_id>", methods=["GET"])
+async def list_messages(chat_id):
+    if not chat_id:
+        abort(400, "chat_id is required")
 
     res = []
     conn = get_conn()
     try:
         with conn.cursor() as cur:
             cur.execute(
-                "SELECT session_id, request_id, role, message, created_at "
+                "SELECT chat_id, request_id, role, message, created_at "
                 "FROM messages "
-                "WHERE session_id=%s "
+                "WHERE chat_id=%s "
                 "ORDER BY created_at DESC",
-                (session_id,),
+                (chat_id,),
             )
             rows = cur.fetchall()
             
