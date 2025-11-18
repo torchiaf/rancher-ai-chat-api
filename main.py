@@ -47,6 +47,9 @@ async def get_user_id(request) -> str:
 async def list_chats():
     user_id = await get_user_id(request)
 
+    if not user_id:
+        abort(400, "user_id not found")
+
     conn = get_conn()
     try:
         with conn.cursor() as cur:
@@ -69,11 +72,14 @@ async def list_chats():
 @app.route("/chats", methods=["POST"])
 async def create_chat():
     user_id = await get_user_id(request)
+    
+    if not user_id:
+        abort(400, "user_id not found")
         
     data = request.get_json(force=True, silent=True)
 
-    if not data or not data["name"] or not user_id:
-        abort(400, "user_id and chat name are required")
+    if not data or not data["name"]:
+        abort(400, "chat name is required")
 
     conn = get_conn()
     try:
@@ -102,6 +108,12 @@ async def create_chat():
 @app.route("/chats/<chat_id>", methods=["DELETE"])
 async def delete_chat(chat_id):
     user_id = await get_user_id(request)
+    
+    if not user_id:
+        abort(400, "user_id not found")
+
+    if not chat_id:
+        abort(400, "chat_id is required")
 
     conn = get_conn()
     try:
@@ -133,8 +145,13 @@ async def delete_chat(chat_id):
     finally:
         conn.close()
 
-@app.route("/messages/<chat_id>", methods=["GET"])
+@app.route("/chats/<chat_id>/messages", methods=["GET"])
 async def list_messages(chat_id):
+    user_id = await get_user_id(request)
+    
+    if not user_id:
+        abort(400, "user_id not found")
+
     if not chat_id:
         abort(400, "chat_id is required")
 
@@ -143,11 +160,14 @@ async def list_messages(chat_id):
     try:
         with conn.cursor() as cur:
             cur.execute(
-                "SELECT chat_id, request_id, role, message, created_at "
-                "FROM messages "
-                "WHERE chat_id=%s "
-                "ORDER BY created_at DESC",
-                (chat_id,),
+                "SELECT m.chat_id, m.request_id, m.role, m.message, m.created_at "
+                "FROM messages m "
+                "WHERE m.chat_id=%s "
+                "AND EXISTS ( "
+                "   SELECT 1 FROM chats c WHERE c.chat_id = m.chat_id AND c.user_id = %s "
+                ") "
+                "ORDER BY m.created_at DESC",
+                (chat_id, user_id),
             )
             rows = cur.fetchall()
             
