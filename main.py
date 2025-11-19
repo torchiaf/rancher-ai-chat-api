@@ -20,7 +20,14 @@ MYSQL_PASSWORD = os.getenv("MYSQL_ROOT_PASSWORD", os.getenv("MYSQL_PASSWORD", "r
 MYSQL_DB = os.getenv("MYSQL_DATABASE", os.getenv("MYSQL_DB", "rancher-ai"))
 
 def get_conn():
-    return pymysql.connect(host=MYSQL_HOST, port=MYSQL_PORT, user=MYSQL_USER, password=MYSQL_PASSWORD, database=MYSQL_DB)
+    return pymysql.connect(
+        host=MYSQL_HOST,
+        port=MYSQL_PORT,
+        user=MYSQL_USER,
+        password=MYSQL_PASSWORD,
+        database=MYSQL_DB,
+        cursorclass=pymysql.cursors.DictCursor
+    )
 
 async def get_user_id(request) -> str:
     rancher_token = request.cookies.get("R_SESS")
@@ -97,7 +104,7 @@ async def create_chat():
                 "SELECT id, chat_id, user_id, active, name, created_at "
                 "FROM chats "
                 "WHERE id=%s",
-                new_id
+                (new_id,)
             )
 
             row = cur.fetchone()
@@ -120,8 +127,8 @@ async def delete_chat(chat_id):
         with conn.cursor() as cur:
             cur.execute("SELECT user_id FROM chats WHERE chat_id=%s", (chat_id,))
             row = cur.fetchone()
-            
-            if not row or row[0] != user_id:
+
+            if not row or row.get("user_id") != user_id:
                 abort(404)
             
             cur.execute(
