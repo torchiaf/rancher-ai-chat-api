@@ -57,19 +57,23 @@ async def list_chats():
     if not user_id:
         abort(400, "user_id not found")
 
+    min_messages = request.args.get("min-messages", default=1, type=int)
+
     conn = get_conn()
     try:
         with conn.cursor() as cur:
-            # Fetch chats that have at least one user message
+            # Fetch chats that have at least `min_messages` user messages
             cur.execute(
-                "SELECT s.id, s.chat_id, s.user_id, s.active, s.name, s.created_at "
+                "SELECT s.id, s.chat_id, s.active, s.name, s.created_at "
                 "FROM chats s "
                 "WHERE s.user_id=%s "
                 "AND EXISTS ( "
-                " SELECT 1 FROM messages m WHERE m.chat_id = s.chat_id AND m.role = 'user' "
+                "  SELECT 1 FROM ( "
+                "    SELECT COUNT(*) AS cnt FROM messages m WHERE m.chat_id = s.chat_id AND m.role = 'user' "
+                "  ) sub WHERE sub.cnt >= %s "
                 ") "
                 "ORDER BY s.created_at DESC",
-                (user_id,),
+                (user_id, min_messages),
             )
             rows = cur.fetchall()
         return jsonify(rows)
