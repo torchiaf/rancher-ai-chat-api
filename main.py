@@ -171,14 +171,22 @@ async def list_messages(chat_id):
     try:
         with conn.cursor() as cur:
             cur.execute(
-                "SELECT m.chat_id, m.request_id, m.role, m.message, m.created_at "
-                "FROM messages m "
-                "WHERE m.chat_id=%s "
-                "AND EXISTS ( "
-                "   SELECT 1 FROM chats c WHERE c.chat_id = m.chat_id AND c.user_id = %s "
-                ") "
-                "ORDER BY m.created_at DESC",
-                (chat_id, user_id),
+                "SELECT chatId, requestId, role, message, createdAt FROM ("
+                "  SELECT c.id AS chatId, m.request_id AS requestId, m.role, m.message, m.created_at AS createdAt "
+                "  FROM messages m "
+                "  JOIN chats c ON c.chat_id = m.chat_id "
+                "  WHERE m.chat_id=%s AND c.user_id = %s AND m.role = 'user' "
+                "  UNION ALL "
+                "  SELECT c.id AS chatId, m.request_id AS requestId, 'agent_mcp' AS role, "
+                "         GROUP_CONCAT(m.message ORDER BY m.created_at SEPARATOR '\n') AS message, "
+                "         MIN(m.created_at) AS createdAt "
+                "  FROM messages m "
+                "  JOIN chats c ON c.chat_id = m.chat_id "
+                "  WHERE m.chat_id=%s AND c.user_id = %s AND m.role IN ('agent', 'mcp') "
+                "  GROUP BY c.id, m.request_id "
+                ") AS merged "
+                "ORDER BY createdAt DESC",
+                (chat_id, user_id, chat_id, user_id),
             )
             rows = cur.fetchall()
             
