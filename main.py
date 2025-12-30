@@ -64,7 +64,10 @@ async def list_chats():
         with conn.cursor() as cur:
             # Fetch chats that have at least `min_messages` user messages
             cur.execute(
-                "SELECT s.id, s.chat_id, s.active, s.name, s.created_at "
+                "SELECT s.id as id, "
+                "s.active as active, "
+                "s.name as name, "
+                "s.created_at as createdAt "
                 "FROM chats s "
                 "WHERE s.user_id=%s "
                 "AND EXISTS ( "
@@ -129,7 +132,7 @@ async def delete_chat(chat_id):
     conn = get_conn()
     try:
         with conn.cursor() as cur:
-            cur.execute("SELECT user_id FROM chats WHERE chat_id=%s", (chat_id,))
+            cur.execute("SELECT user_id FROM chats WHERE id=%s", (chat_id,))
             row = cur.fetchone()
 
             if not row or row.get("user_id") != user_id:
@@ -137,7 +140,7 @@ async def delete_chat(chat_id):
             
             cur.execute(
                 "DELETE FROM chats "
-                "WHERE chat_id=%s ",
+                "WHERE id=%s ",
                 (chat_id,)
             )
             
@@ -147,7 +150,7 @@ async def delete_chat(chat_id):
             # Delete associated messages
             cur.execute(
                 "DELETE FROM messages "
-                "WHERE chat_id=%s ",
+                "WHERE chat_id=(SELECT chat_id FROM chats WHERE id=%s) ",
                 (chat_id,)
             )
 
@@ -172,18 +175,19 @@ async def list_messages(chat_id):
         with conn.cursor() as cur:
             cur.execute("SET SESSION group_concat_max_len = 1000000")
             cur.execute(
-                "SELECT chatId, requestId, role, message, createdAt FROM ("
-                "  SELECT c.id AS chatId, m.request_id AS requestId, m.role, m.message, m.created_at AS createdAt "
+                "SELECT chatId, requestId, role, message, context, createdAt FROM ("
+                "  SELECT c.id AS chatId, m.request_id AS requestId, m.role, m.message, m.context, m.created_at AS createdAt "
                 "  FROM messages m "
                 "  JOIN chats c ON c.chat_id = m.chat_id "
                 "  WHERE c.id=%s AND c.user_id = %s AND m.role = 'user' "
                 "  UNION ALL "
                 "  SELECT c.id AS chatId, m.request_id AS requestId, 'agent' AS role, "
                 "         GROUP_CONCAT(m.message ORDER BY m.created_at SEPARATOR '\n') AS message, "
+                "         '' AS context, "
                 "         MIN(m.created_at) AS createdAt "
                 "  FROM messages m "
                 "  JOIN chats c ON c.chat_id = m.chat_id "
-                "  WHERE c.id=%s AND c.user_id = %s AND m.role IN ('agent', 'mcp') "
+                "  WHERE c.id=%s AND c.user_id = %s AND m.role IN ('llm', 'mcp') "
                 "  GROUP BY c.id, m.request_id "
                 ") AS merged "
                 "ORDER BY createdAt DESC",
