@@ -170,19 +170,20 @@ async def list_messages(chat_id):
     conn = get_conn()
     try:
         with conn.cursor() as cur:
+            cur.execute("SET SESSION group_concat_max_len = 1000000")
             cur.execute(
                 "SELECT chatId, requestId, role, message, createdAt FROM ("
                 "  SELECT c.id AS chatId, m.request_id AS requestId, m.role, m.message, m.created_at AS createdAt "
                 "  FROM messages m "
                 "  JOIN chats c ON c.chat_id = m.chat_id "
-                "  WHERE m.chat_id=%s AND c.user_id = %s AND m.role = 'user' "
+                "  WHERE c.id=%s AND c.user_id = %s AND m.role = 'user' "
                 "  UNION ALL "
-                "  SELECT c.id AS chatId, m.request_id AS requestId, 'agent_mcp' AS role, "
+                "  SELECT c.id AS chatId, m.request_id AS requestId, 'agent' AS role, "
                 "         GROUP_CONCAT(m.message ORDER BY m.created_at SEPARATOR '\n') AS message, "
                 "         MIN(m.created_at) AS createdAt "
                 "  FROM messages m "
                 "  JOIN chats c ON c.chat_id = m.chat_id "
-                "  WHERE m.chat_id=%s AND c.user_id = %s AND m.role IN ('agent', 'mcp') "
+                "  WHERE c.id=%s AND c.user_id = %s AND m.role IN ('agent', 'mcp') "
                 "  GROUP BY c.id, m.request_id "
                 ") AS merged "
                 "ORDER BY createdAt DESC",
