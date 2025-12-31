@@ -177,20 +177,29 @@ async def list_messages(chat_id):
         with conn.cursor() as cur:
             cur.execute("SET SESSION group_concat_max_len = 1000000")
             cur.execute(
-                "SELECT chatId, requestId, role, message, context, createdAt FROM ("
-                "  SELECT c.chat_id AS chatId, m.request_id AS requestId, m.role, m.message, m.context, m.created_at AS createdAt "
+                "SELECT chatId, requestId, role, message, context, tags, createdAt FROM ("
+                "  SELECT c.chat_id AS chatId, "
+                "         m.request_id AS requestId, "
+                "         m.role, "
+                "         m.message, "
+                "         m.context, "
+                "         m.tags, "
+                "         m.created_at AS createdAt "
                 "  FROM messages m "
                 "  JOIN chats c ON c.chat_id = m.chat_id "
                 "  WHERE m.chat_id=%s AND c.user_id = %s AND m.role = 'user' "
                 "  UNION ALL "
-                "  SELECT c.chat_id AS chatId, m.request_id AS requestId, 'agent' AS role, "
+                "  SELECT c.chat_id AS chatId, "
+                "         m.request_id AS requestId, "
+                "         'agent' AS role, "
                 "         GROUP_CONCAT(m.message ORDER BY m.created_at SEPARATOR '\n') AS message, "
                 "         '' AS context, "
+                "         m.tags AS tags, "
                 "         MIN(m.created_at) AS createdAt "
                 "  FROM messages m "
                 "  JOIN chats c ON c.chat_id = m.chat_id "
                 "  WHERE m.chat_id=%s AND c.user_id = %s AND m.role IN ('llm', 'mcp') "
-                "  GROUP BY c.id, m.request_id "
+                "  GROUP BY c.chat_id, m.request_id "
                 ") AS merged "
                 "ORDER BY createdAt DESC",
                 (chat_id, user_id, chat_id, user_id),
