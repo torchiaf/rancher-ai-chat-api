@@ -3,6 +3,7 @@ import pymysql
 import uuid
 import time
 import httpx
+import json
 import logging
 
 from flask import Flask, jsonify, request, abort
@@ -57,31 +58,35 @@ async def list_chats():
     if not user_id:
         abort(400, "user_id not found")
 
-    min_messages = request.args.get("min-messages", default=1, type=int)
+    # Request query parameters handling
+    include_tags = request.args.getlist("include-tag")
+    exclude_tags = request.args.getlist("exclude-tag")
 
     conn = get_conn()
     try:
         with conn.cursor() as cur:
-            # Fetch chats that have at least `min_messages` user messages
-            cur.execute(
-                "SELECT "
-                "s.chat_id as chatId, "
-                "s.id as id, "
-                "s.active as active, "
-                "s.name as name, "
-                "s.created_at as createdAt "
+            sql = (
+                "SELECT DISTINCT s.chat_id as chatId, s.id as id, s.active as active, s.name as name, s.created_at as createdAt "
                 "FROM chats s "
+                "LEFT JOIN messages m ON m.chat_id = s.chat_id AND m.role = 'user' "
                 "WHERE s.user_id=%s "
-                "AND EXISTS ( "
-                "  SELECT 1 FROM ( "
-                "    SELECT COUNT(*) AS cnt FROM messages m WHERE m.chat_id = s.chat_id AND m.role = 'user' "
-                "  ) sub WHERE sub.cnt >= %s "
-                ") "
-                "ORDER BY s.created_at DESC",
-                (user_id, min_messages),
             )
+            params = [user_id]
+            tag_conditions = []
+            if include_tags:
+                tag_in = ' OR '.join(["JSON_CONTAINS(m.tags, %s)" for _ in include_tags])
+                tag_conditions.append(f"({tag_in})")
+                params.extend([json.dumps(tag) for tag in include_tags])
+            if exclude_tags:
+                tag_out = ' OR '.join(["JSON_CONTAINS(m.tags, %s)" for _ in exclude_tags])
+                tag_conditions.append(f"NOT ({tag_out})")
+                params.extend([json.dumps(tag) for tag in exclude_tags])
+            if tag_conditions:
+                sql += " AND (" + " AND ".join(tag_conditions) + ")"
+            sql += " ORDER BY s.created_at DESC"
+            cur.execute(sql, params)
             rows = cur.fetchall()
-        return jsonify(rows)
+            return jsonify(rows)
     finally:
         conn.close()
 
@@ -170,13 +175,39 @@ async def list_messages(chat_id):
 
     if not chat_id:
         abort(400, "chat_id is required")
+    
+    # Request query parameters handling
+    include_tags = request.args.getlist("include-tag")
+    exclude_tags = request.args.getlist("exclude-tag")
 
     res = []
     conn = get_conn()
     try:
         with conn.cursor() as cur:
             cur.execute("SET SESSION group_concat_max_len = 1000000")
-            cur.execute(
+            # Build SQL for tag filtering
+            user_where = "m.chat_id=%s AND c.user_id = %s AND m.role = 'user'"
+            agent_where = "m.chat_id=%s AND c.user_id = %s AND m.role IN ('llm', 'mcp')"
+            params = [chat_id, user_id, chat_id, user_id]
+            tag_conditions_user = []
+            tag_conditions_agent = []
+            if include_tags:
+                tag_in = ' OR '.join(["JSON_CONTAINS(m.tags, %s)" for _ in include_tags])
+                tag_conditions_user.append(f"({tag_in})")
+                tag_conditions_agent.append(f"({tag_in})")
+                params.extend([json.dumps(tag) for tag in include_tags])
+                params.extend([json.dumps(tag) for tag in include_tags])
+            if exclude_tags:
+                tag_out = ' OR '.join(["JSON_CONTAINS(m.tags, %s)" for _ in exclude_tags])
+                tag_conditions_user.append(f"NOT ({tag_out})")
+                tag_conditions_agent.append(f"NOT ({tag_out})")
+                params.extend([json.dumps(tag) for tag in exclude_tags])
+                params.extend([json.dumps(tag) for tag in exclude_tags])
+            if tag_conditions_user:
+                user_where += " AND (" + " AND ".join(tag_conditions_user) + ")"
+            if tag_conditions_agent:
+                agent_where += " AND (" + " AND ".join(tag_conditions_agent) + ")"
+            sql = (
                 "SELECT chatId, requestId, role, message, context, tags, createdAt FROM ("
                 "  SELECT c.chat_id AS chatId, "
                 "         m.request_id AS requestId, "
@@ -187,25 +218,24 @@ async def list_messages(chat_id):
                 "         m.created_at AS createdAt "
                 "  FROM messages m "
                 "  JOIN chats c ON c.chat_id = m.chat_id "
-                "  WHERE m.chat_id=%s AND c.user_id = %s AND m.role = 'user' "
+                "  WHERE " + user_where +
                 "  UNION ALL "
                 "  SELECT c.chat_id AS chatId, "
                 "         m.request_id AS requestId, "
                 "         'agent' AS role, "
                 "         GROUP_CONCAT(m.message ORDER BY m.created_at SEPARATOR '\n') AS message, "
                 "         '' AS context, "
-                "         m.tags AS tags, "
+                "         MAX(CASE WHEN m.role = 'llm' THEN m.tags ELSE NULL END) AS tags, "
                 "         MIN(m.created_at) AS createdAt "
                 "  FROM messages m "
                 "  JOIN chats c ON c.chat_id = m.chat_id "
-                "  WHERE m.chat_id=%s AND c.user_id = %s AND m.role IN ('llm', 'mcp') "
+                "  WHERE " + agent_where +
                 "  GROUP BY c.chat_id, m.request_id "
                 ") AS merged "
-                "ORDER BY createdAt DESC",
-                (chat_id, user_id, chat_id, user_id),
+                "ORDER BY createdAt DESC"
             )
+            cur.execute(sql, params)
             rows = cur.fetchall()
-            
             res = jsonify(rows)
     finally:
         conn.close()
