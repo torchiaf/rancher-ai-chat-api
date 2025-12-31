@@ -170,6 +170,10 @@ async def list_messages(chat_id):
 
     if not chat_id:
         abort(400, "chat_id is required")
+    
+    # Request query parameters handling
+    include_tags = request.args.getlist("include-tag")
+    exclude_tags = request.args.getlist("exclude-tag")
 
     res = []
     conn = get_conn()
@@ -194,7 +198,7 @@ async def list_messages(chat_id):
                 "         'agent' AS role, "
                 "         GROUP_CONCAT(m.message ORDER BY m.created_at SEPARATOR '\n') AS message, "
                 "         '' AS context, "
-                "         m.tags AS tags, "
+                "         MAX(CASE WHEN m.role = 'llm' THEN m.tags ELSE NULL END) AS tags, "
                 "         MIN(m.created_at) AS createdAt "
                 "  FROM messages m "
                 "  JOIN chats c ON c.chat_id = m.chat_id "
@@ -205,8 +209,21 @@ async def list_messages(chat_id):
                 (chat_id, user_id, chat_id, user_id),
             )
             rows = cur.fetchall()
-            
-            res = jsonify(rows)
+
+            # Filter by include_tags and exclude_tags
+            filtered = []
+            for row in rows:
+                row_tags = row.get('tags', '')
+                tag_list = [t.strip() for t in row_tags.split(',')] if row_tags else []
+                include_ok = True
+                exclude_ok = True
+                if include_tags:
+                    include_ok = any(tag in tag_list for tag in include_tags)
+                if exclude_tags:
+                    exclude_ok = not any(tag in tag_list for tag in exclude_tags)
+                if include_ok and exclude_ok:
+                    filtered.append(row)
+            res = jsonify(filtered) if (include_tags or exclude_tags) else jsonify(rows)
     finally:
         conn.close()
 
