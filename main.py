@@ -19,6 +19,7 @@ MYSQL_PORT = int(os.getenv("MYSQL_PORT", "3306"))
 MYSQL_USER = os.getenv("MYSQL_USER", "root")
 MYSQL_PASSWORD = os.getenv("MYSQL_ROOT_PASSWORD", os.getenv("MYSQL_PASSWORD", "rancher-ai"))
 MYSQL_DB = os.getenv("MYSQL_DATABASE", os.getenv("MYSQL_DB", "rancher-ai"))
+RANCHER_HOST = os.getenv("RANCHER_HOST", "https://172.17.0.1")
 
 def get_conn():
     return pymysql.connect(
@@ -31,11 +32,14 @@ def get_conn():
     )
 
 async def get_user_id(request) -> str:
+    rancher_host = request.headers.get("Host", RANCHER_HOST)
     rancher_token = request.cookies.get("R_SESS")
+
+    api_url = f"{rancher_host}/v3/users?me=true"
 
     try:
         async with httpx.AsyncClient(timeout=5.0, verify=False) as client:
-            resp = await client.get("https://172.17.0.1/v3/users?me=true", headers={
+            resp = await client.get(api_url, headers={
                 "Cookie": f"R_SESS={rancher_token}",
             })
             payload = resp.json() 
