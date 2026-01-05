@@ -131,6 +131,39 @@ async def create_chat():
         return jsonify(row), 201
     finally:
         conn.close()
+        
+@app.route("/chats", methods=["DELETE"])
+async def delete_chats():
+    user_id = await get_user_id(request)
+    
+    if not user_id:
+        abort(400, "user_id not found")
+
+    conn = get_conn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                "DELETE FROM chats "
+                "WHERE user_id=%s ",
+                (user_id,)
+            )
+            
+            if cur.rowcount == 0:
+                abort(404)
+
+            # Delete associated messages
+            cur.execute(
+                "DELETE FROM messages "
+                "WHERE chat_id IN ("
+                "  SELECT chat_id FROM chats WHERE user_id=%s"
+                ")",
+                (user_id,)
+            )
+
+            conn.commit()
+        return "", 204
+    finally:
+        conn.close()
 
 @app.route("/chats/<chat_id>", methods=["DELETE"])
 async def delete_chat(chat_id):
