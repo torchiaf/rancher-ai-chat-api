@@ -111,7 +111,7 @@ async def create_chat():
                 "INSERT INTO chats "
                 "(chat_id, user_id, active, name, created_at) "
                 "VALUES (%s, %s, %s, %s, %s)",
-                (str(uuid.uuid4()), user_id, True, data["name"], int(time.time())),
+                (str(uuid.uuid4()), user_id, data["active"], data["name"], int(time.time())),
             )
             conn.commit()
 
