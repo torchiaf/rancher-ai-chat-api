@@ -247,7 +247,15 @@ async def list_messages(chat_id):
                 "  WHERE " + agent_where +
                 "  GROUP BY c.chat_id, m.request_id "
                 ") AS merged "
-                "ORDER BY createdAt DESC"
+                "ORDER BY ("
+                "  SELECT MIN(created_at) "
+                "  FROM messages "
+                "  WHERE request_id = merged.requestId "
+                "    AND chat_id = merged.chatId "
+                "    AND role = 'user'"
+                ") ASC, "
+                "merged.role = 'user' DESC, "
+                "merged.createdAt ASC"
             )
             cur.execute(sql, params)
             rows = cur.fetchall()
