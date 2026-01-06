@@ -147,11 +147,7 @@ async def delete_chats():
                 "WHERE user_id=%s ",
                 (user_id,)
             )
-            
-            if cur.rowcount == 0:
-                abort(404)
 
-            # Delete associated messages
             cur.execute(
                 "DELETE FROM messages "
                 "WHERE chat_id IN ("
