@@ -4,6 +4,7 @@ import uuid
 import time
 import httpx
 import json
+import asyncio
 import logging
 
 from flask import Flask, jsonify, request, abort
@@ -56,8 +57,8 @@ async def get_user_id(request) -> str:
     return None
 
 @app.route("/chats", methods=["GET"])
-async def list_chats():
-    user_id = await get_user_id(request)
+def list_chats():
+    user_id = asyncio.run(get_user_id(request))
 
     if not user_id:
         abort(400, "user_id not found")
@@ -97,8 +98,8 @@ async def list_chats():
         conn.close()
 
 @app.route("/chats", methods=["POST"])
-async def create_chat():
-    user_id = await get_user_id(request)
+def create_chat():
+    user_id = asyncio.run(get_user_id(request))
     
     if not user_id:
         abort(400, "user_id not found")
@@ -133,8 +134,8 @@ async def create_chat():
         conn.close()
         
 @app.route("/chats", methods=["DELETE"])
-async def delete_chats():
-    user_id = await get_user_id(request)
+def delete_chats():
+    user_id = asyncio.run(get_user_id(request))
     
     if not user_id:
         abort(400, "user_id not found")
@@ -162,8 +163,8 @@ async def delete_chats():
         conn.close()
 
 @app.route("/chats/<chat_id>", methods=["DELETE"])
-async def delete_chat(chat_id):
-    user_id = await get_user_id(request)
+def delete_chat(chat_id):
+    user_id = asyncio.run(get_user_id(request))
     
     if not user_id:
         abort(400, "user_id not found")
@@ -202,8 +203,8 @@ async def delete_chat(chat_id):
         conn.close()
 
 @app.route("/chats/<chat_id>/messages", methods=["GET"])
-async def list_messages(chat_id):
-    user_id = await get_user_id(request)
+def list_messages(chat_id):
+    user_id = asyncio.run(get_user_id(request))
     
     if not user_id:
         abort(400, "user_id not found")
