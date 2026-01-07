@@ -12,8 +12,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 COPY . /app
 
-RUN pip install --no-cache-dir Flask[async] pymysql cryptography httpx
+RUN pip install --no-cache-dir Flask[async] pymysql cryptography httpx hypercorn
 
 EXPOSE 5000
 
-CMD ["python", "main.py"]
+CMD ["hypercorn", "main:app", "--bind", "0.0.0.0:5000"]
