@@ -56,6 +56,7 @@ async def list_chats():
 
     db_url = get_db_url()
     conn = await AsyncConnection.connect(db_url)
+    conn.row_factory = dict_row
     try:
         async with conn.cursor() as cur:
             sql = (
@@ -102,6 +103,7 @@ async def create_chat():
 
     db_url = get_db_url()
     conn = await AsyncConnection.connect(db_url)
+    conn.row_factory = dict_row
     try:
         async with conn.cursor() as cur:
             chat_id = str(uuid.uuid4())
@@ -114,7 +116,7 @@ async def create_chat():
             )
             row = await cur.fetchone()
         await conn.commit()
-        return jsonify(dict(row)), 201
+        return jsonify(row), 201
     finally:
         await conn.close()
         
@@ -201,9 +203,10 @@ async def list_messages(chat_id):
 
     db_url = get_db_url()
     conn = await AsyncConnection.connect(db_url)
+    conn.row_factory = dict_row
 
     try:
-        async with conn.cursor(row_factory=dict_row) as cur:
+        async with conn.cursor() as cur:
             # Build SQL that returns 2 rows per message: one user, one agent
             sql = (
                 "SELECT "
