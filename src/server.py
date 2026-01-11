@@ -16,6 +16,15 @@ app = Flask(__name__)
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 logger = logging.getLogger(__name__)
 
+def dict_row_case_preserving(cursor):
+    """
+    Custom row factory that preserves column name case from SQL aliases
+    """
+    names = [desc[0] for desc in cursor.description]
+    def factory(row):
+        return {names[i]: row[i] for i in range(len(row))}
+    return factory
+
 async def get_user_id(request) -> str:
     if RANCHER_USER:
         return RANCHER_USER
@@ -56,6 +65,7 @@ async def list_chats():
 
     db_url = get_db_url()
     conn = await AsyncConnection.connect(db_url)
+    conn.row_factory = dict_row_case_preserving
     try:
         async with conn.cursor() as cur:
             sql = (
@@ -102,6 +112,7 @@ async def create_chat():
 
     db_url = get_db_url()
     conn = await AsyncConnection.connect(db_url)
+    conn.row_factory = dict_row_case_preserving
     try:
         async with conn.cursor() as cur:
             chat_id = str(uuid.uuid4())
@@ -114,7 +125,7 @@ async def create_chat():
             )
             row = await cur.fetchone()
         await conn.commit()
-        return jsonify(dict(row)), 201
+        return jsonify(row), 201
     finally:
         await conn.close()
         
@@ -201,9 +212,10 @@ async def list_messages(chat_id):
 
     db_url = get_db_url()
     conn = await AsyncConnection.connect(db_url)
+    conn.row_factory = dict_row_case_preserving
 
     try:
-        async with conn.cursor(row_factory=dict_row) as cur:
+        async with conn.cursor() as cur:
             # Build SQL that returns 2 rows per message: one user, one agent
             sql = (
                 "SELECT "
