@@ -1,19 +1,18 @@
-FROM python:3.11-slim
-
-ENV PYTHONUNBUFFERED=1 \
-    FLASK_ENV=production \
-    PORT=5000
+FROM registry.suse.com/bci/python:3.13
 
 WORKDIR /app
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    ca-certificates \
- && rm -rf /var/lib/apt/lists/*
+# Install uv
+RUN pip install uv
 
-COPY . /app
+# Copy project files
+COPY pyproject.toml pyproject.toml
+COPY README.md README.md
+COPY src/ src/
 
-RUN pip install --no-cache-dir Flask[async] pymysql cryptography httpx
+# Install dependencies using uv
+RUN uv sync
 
 EXPOSE 5000
 
-CMD ["python", "main.py"]
+CMD ["uv", "run", "gunicorn", "-w", "2", "-b", "0.0.0.0:5000", "src.server:app"]
