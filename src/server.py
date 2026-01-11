@@ -225,7 +225,8 @@ async def list_messages(chat_id):
                 "        user_message as \"message\", "
                 "        context as \"context\", "
                 "        tags as \"tags\", "
-                "        EXTRACT(EPOCH FROM created_at)::int as \"createdAt\" "
+                "        EXTRACT(EPOCH FROM created_at)::int as \"createdAt\", "
+                "        created_at as \"sortKey\" "
                 "    FROM r_messages "
                 "    WHERE chat_id = %s "
                 "    UNION ALL "
@@ -236,8 +237,9 @@ async def list_messages(chat_id):
                 "        COALESCE(mcp_responses, '') || COALESCE(llm_response, '') as \"message\", "
                 "        context as \"context\", "
                 "        tags as \"tags\", "
-                "        EXTRACT(EPOCH FROM created_at)::int as \"createdAt\" "
-                "    FROM r_messages "
+                "        EXTRACT(EPOCH FROM created_at)::int as \"createdAt\", "
+                "        (SELECT created_at FROM r_messages m2 WHERE m2.request_id = m1.request_id AND m2.chat_id = m1.chat_id AND m2.role = 'user' LIMIT 1) as \"sortKey\" "
+                "    FROM r_messages m1 "
                 "    WHERE chat_id = %s "
                 ") AS merged "
                 "WHERE EXISTS (SELECT 1 FROM r_chats WHERE chat_id = %s AND user_id = %s) "
@@ -257,7 +259,7 @@ async def list_messages(chat_id):
                     params.append(tag)
             
             # Order by request_id and role (user first in each pair)
-            sql += "ORDER BY \"requestId\" ASC, \"role\" = 'user' DESC"
+            sql += "ORDER BY \"sortKey\" ASC, \"role\" = 'user' DESC"
             
             await cur.execute(sql, params)
             rows = await cur.fetchall()
