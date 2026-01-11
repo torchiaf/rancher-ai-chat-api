@@ -16,15 +16,6 @@ app = Flask(__name__)
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 logger = logging.getLogger(__name__)
 
-def dict_row_case_preserving(cursor):
-    """
-    Custom row factory that preserves column name case from SQL aliases
-    """
-    names = [desc[0] for desc in cursor.description]
-    def factory(row):
-        return {names[i]: row[i] for i in range(len(row))}
-    return factory
-
 async def get_user_id(request) -> str:
     if RANCHER_USER:
         return RANCHER_USER
@@ -65,15 +56,15 @@ async def list_chats():
 
     db_url = get_db_url()
     conn = await AsyncConnection.connect(db_url)
-    conn.row_factory = dict_row_case_preserving
+    conn.row_factory = dict_row
     try:
         async with conn.cursor() as cur:
             sql = (
                 "SELECT "
-                "s.chat_id as chatId, "
-                "s.active as active, "
-                "s.name as name, "
-                "s.created_at as createdAt "
+                "s.chat_id as \"chatId\", "
+                "s.active as \"active\", "
+                "s.name as \"name\", "
+                "s.created_at as \"createdAt\""
                 "FROM r_chats s "
                 "WHERE s.user_id=%s "
                 "AND s.name IS NOT NULL "
@@ -112,7 +103,7 @@ async def create_chat():
 
     db_url = get_db_url()
     conn = await AsyncConnection.connect(db_url)
-    conn.row_factory = dict_row_case_preserving
+    conn.row_factory = dict_row
     try:
         async with conn.cursor() as cur:
             chat_id = str(uuid.uuid4())
@@ -120,7 +111,7 @@ async def create_chat():
             await cur.execute(
                 "INSERT INTO r_chats "
                 "(chat_id, user_id, active, name, created_at, updated_at) "
-                "VALUES (%s, %s, %s, %s, %s, %s) RETURNING chat_id, user_id, active, name, created_at, updated_at",
+                "VALUES (%s, %s, %s, %s, %s, %s) RETURNING chat_id as \"chatId\", user_id as \"userId\", active as \"active\", name as \"name\", created_at as \"createdAt\", updated_at as \"updatedAt\"",
                 (chat_id, user_id, data.get("active", True), data["name"], now, now),
             )
             row = await cur.fetchone()
@@ -212,40 +203,40 @@ async def list_messages(chat_id):
 
     db_url = get_db_url()
     conn = await AsyncConnection.connect(db_url)
-    conn.row_factory = dict_row_case_preserving
+    conn.row_factory = dict_row
 
     try:
         async with conn.cursor() as cur:
             # Build SQL that returns 2 rows per message: one user, one agent
             sql = (
                 "SELECT "
-                "    chatId, "
-                "    requestId, "
-                "    role, "
-                "    message, "
-                "    context, "
-                "    tags, "
-                "    createdAt "
+                "    \"chatId\", "
+                "    \"requestId\", "
+                "    \"role\", "
+                "    \"message\", "
+                "    \"context\", "
+                "    \"tags\", "
+                "    \"createdAt\" "
                 "FROM ("
                 "    SELECT "
-                "        chat_id as chatId, "
-                "        request_id as requestId, "
-                "        'user' as role, "
-                "        user_message as message, "
-                "        context, "
-                "        tags, "
-                "        created_at as createdAt "
+                "        chat_id as \"chatId\", "
+                "        request_id as \"requestId\", "
+                "        'user' as \"role\", "
+                "        user_message as \"message\", "
+                "        context as \"context\", "
+                "        tags as \"tags\", "
+                "        created_at as \"createdAt\" "
                 "    FROM r_messages "
                 "    WHERE chat_id = %s "
                 "    UNION ALL "
                 "    SELECT "
-                "        chat_id as chatId, "
-                "        request_id as requestId, "
-                "        'agent' as role, "
-                "        COALESCE(mcp_responses, '') || COALESCE(llm_response, '') as message, "
-                "        context, "
-                "        tags, "
-                "        created_at as createdAt "
+                "        chat_id as \"chatId\", "
+                "        request_id as \"requestId\", "
+                "        'agent' as \"role\", "
+                "        COALESCE(mcp_responses, '') || COALESCE(llm_response, '') as \"message\", "
+                "        context as \"context\", "
+                "        tags as \"tags\", "
+                "        created_at as \"createdAt\" "
                 "    FROM r_messages "
                 "    WHERE chat_id = %s "
                 ") AS merged "
@@ -266,7 +257,7 @@ async def list_messages(chat_id):
                     params.append(tag)
             
             # Order by request_id and role (user first in each pair)
-            sql += "ORDER BY requestId ASC, role = 'user' DESC"
+            sql += "ORDER BY \"requestId\" ASC, \"role\" = 'user' DESC"
             
             await cur.execute(sql, params)
             rows = await cur.fetchall()
