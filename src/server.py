@@ -64,7 +64,7 @@ async def list_chats():
                 "s.chat_id as \"chatId\", "
                 "s.active as \"active\", "
                 "s.name as \"name\", "
-                "s.created_at as \"createdAt\""
+                "EXTRACT(EPOCH FROM s.created_at)::int as \"createdAt\""
                 "FROM r_chats s "
                 "WHERE s.user_id=%s "
                 "AND s.name IS NOT NULL "
@@ -111,7 +111,7 @@ async def create_chat():
             await cur.execute(
                 "INSERT INTO r_chats "
                 "(chat_id, user_id, active, name, created_at, updated_at) "
-                "VALUES (%s, %s, %s, %s, %s, %s) RETURNING chat_id as \"chatId\", user_id as \"userId\", active as \"active\", name as \"name\", created_at as \"createdAt\", updated_at as \"updatedAt\"",
+                "VALUES (%s, %s, %s, %s, %s, %s) RETURNING chat_id as \"chatId\", user_id as \"userId\", active as \"active\", name as \"name\", EXTRACT(EPOCH FROM created_at)::int as \"createdAt\", EXTRACT(EPOCH FROM updated_at)::int as \"updatedAt\"",
                 (chat_id, user_id, data.get("active", True), data["name"], now, now),
             )
             row = await cur.fetchone()
@@ -225,7 +225,7 @@ async def list_messages(chat_id):
                 "        user_message as \"message\", "
                 "        context as \"context\", "
                 "        tags as \"tags\", "
-                "        created_at as \"createdAt\" "
+                "        EXTRACT(EPOCH FROM created_at)::int as \"createdAt\" "
                 "    FROM r_messages "
                 "    WHERE chat_id = %s "
                 "    UNION ALL "
@@ -236,7 +236,7 @@ async def list_messages(chat_id):
                 "        COALESCE(mcp_responses, '') || COALESCE(llm_response, '') as \"message\", "
                 "        context as \"context\", "
                 "        tags as \"tags\", "
-                "        created_at as \"createdAt\" "
+                "        EXTRACT(EPOCH FROM created_at)::int as \"createdAt\" "
                 "    FROM r_messages "
                 "    WHERE chat_id = %s "
                 ") AS merged "
