@@ -22,7 +22,7 @@ async def list_chats():
         chat_rows = await get_db_chats(user_id, request.args)
 
         for row in chat_rows:
-            messages = await get_db_messages(row["chatId"], user_id, request.args)
+            messages = await get_db_messages(row["id"], user_id, request.args)
             if messages and len(messages) > 0:
                 chats.append(row)
     except Exception as e:
