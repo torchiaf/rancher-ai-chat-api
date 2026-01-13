@@ -71,32 +71,6 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
 
-    post:
-      summary: Create a new chat
-      description: Creates a new chat for the authenticated user
-      operationId: create_chat
-      tags:
-        - Chats
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/CreateChatRequest'
-      responses:
-        '201':
-          description: Chat created successfully
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ChatResponse'
-        '400':
-          description: Invalid request or user not found
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-
     delete:
       summary: Delete all chats for the current user
       description: Deletes all chats and associated messages for the authenticated user
