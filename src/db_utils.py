@@ -2,6 +2,7 @@ import json
 import logging
 import msgpack
 import pickle
+from datetime import datetime
     
 async def extract_message_row(
     cur,
@@ -259,3 +260,16 @@ def deserialize_msgpack_blob(blob):
     except Exception as e:
         logging.error(f"[deserialize_msgpack_blob] Failed to deserialize: {e}")
         return None
+    
+def parse_timestamp(ts_str: str | None) -> datetime | str | None:
+    """
+    Parse timestamp string to datetime object.
+    Handles ISO 8601 format with Z suffix.
+    """
+    if not ts_str:
+        return None
+    
+    try:
+        return datetime.fromisoformat(ts_str.replace('Z', '+00:00'))
+    except (ValueError, AttributeError):
+        return ts_str

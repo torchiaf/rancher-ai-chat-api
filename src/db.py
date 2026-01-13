@@ -3,7 +3,7 @@ from psycopg import AsyncConnection
 from psycopg.rows import dict_row
 
 from .config import get_db_url
-from .db_utils import extract_message_row
+from .db_utils import extract_message_row, parse_timestamp
 
 async def get_conn():
     """
@@ -48,7 +48,7 @@ async def get_db_chats(user_id: str, request_args: dict) -> list[dict]:
                 "  c.thread_id as \"id\", "
                 "  (c.metadata->>'user_id')::text as \"userId\", "
                 "  'Chat ' || to_char((c.checkpoint->>'ts')::timestamp, 'YYYY-MM-DD HH24:MI:SS') as \"name\", "
-                "  (c.checkpoint->>'ts') as \"createdAt\" "
+                "  (c.checkpoint->>'ts')::timestamp as \"createdAt\" "
                 "  FROM checkpoints c "
                 "  WHERE (c.metadata->>'user_id')::text=%s "
                 "  ORDER BY c.thread_id, (c.checkpoint->>'ts')::timestamp DESC "
@@ -281,7 +281,7 @@ async def get_db_messages(chat_id: str, user_id: str, request_args: dict) -> lis
                         tags_row = tags_list
                         
                     if not created_at_row:
-                        created_at_row = checkpoint_raw.get('ts')
+                        created_at_row = parse_timestamp(checkpoint_raw.get('ts'))
                 
                 # TODO: complete tag filtering here, for now we filter out 'welcome' and 'confirmation' user tags only
                 # Example:
