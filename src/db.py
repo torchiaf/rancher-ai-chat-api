@@ -45,7 +45,7 @@ async def get_db_chats(user_id: str, request_args: dict) -> list[dict]:
             sql = (
                 "SELECT * FROM ("
                 "  SELECT DISTINCT ON (c.thread_id) "
-                "  c.thread_id as \"chatId\", "
+                "  c.thread_id as \"id\", "
                 "  (c.metadata->>'user_id')::text as \"userId\", "
                 "  'Chat ' || to_char((c.checkpoint->>'ts')::timestamp, 'YYYY-MM-DD HH24:MI:SS') as \"name\", "
                 "  (c.checkpoint->>'ts') as \"createdAt\" "
