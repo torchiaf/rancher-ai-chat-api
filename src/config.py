@@ -8,6 +8,9 @@ DB_HOST = os.environ.get("DB_HOST", "localhost")
 DB_PORT = os.environ.get("DB_PORT", "5432")
 DB_NAME = os.environ.get("DB_NAME", "postgres")
 
+AGENT_WS_SUMMARY_URL = os.getenv("AGENT_WS_SUMMARY_URL", "ws://localhost:8000/agent/ws/summary")
+AGENT_WS_TIMEOUT = float(os.getenv("AGENT_WS_TIMEOUT", "5"))
+
 LOG_LEVEL = os.getenv("LOG_LEVEL", "DEBUG").upper()
 
 IS_DEV = os.getenv("IS_DEV", "true").lower() == "true"
