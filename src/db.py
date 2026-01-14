@@ -265,14 +265,18 @@ async def get_db_messages(chat_id: str, user_id: str, request_args: dict) -> lis
                         logging.warning("No user or agent message content found for checkpoint_id: %s", checkpoint_id)
                         continue
 
+                    # Keep last user message
                     if user_msg and user_msg != "":
                         user_row_msg = user_msg
                         
+                    # Keep last mcp response
                     if mcp_msg and mcp_msg != "":
                         mcp_row_msg = mcp_msg
                         
+                    # Keep first llm response
                     if llm_msg and llm_msg != "":
-                        llm_row_msg = llm_msg
+                        if not llm_row_msg:
+                            llm_row_msg = llm_msg
                         
                     if context_val and context_val != "":
                         context_row = context_val
